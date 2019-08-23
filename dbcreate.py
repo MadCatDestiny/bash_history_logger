@@ -14,6 +14,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(64))
+    is_root = Column(BOOLEAN)
 
     commands = relationship('Command')
 
@@ -27,6 +28,7 @@ class Command(Base):
     user_id = Column(Integer, ForeignKey('user.id'))
     command = Column(String(512))
     is_dangerous = Column(BOOLEAN)
+
     users = relationship('User')
 
 
@@ -37,17 +39,17 @@ engine = create_engine('sqlite:///{}'.format(db_file), echo=False)
 Base.metadata.drop_all(engine)
 Base.metadata.create_all(engine)
 
-#session = scoped_session(sessionmaker(bind=engine))
+session = scoped_session(sessionmaker(bind=engine))
 """
 u1 = User(name='bill')
 session.add(u1)
 session.commit()
 
-u1 = User(name='bill2')
-session.add(u1)
+u2 = User(name='bill2', is_root=False)
+session.add(u2)
 session.commit()
 
-c1 = Command(user_id=u1.id, command='ls -a', is_dangerous=False)
+c1 = Command(user_id=u2.id, command='chmode', is_dangerous=False)
 session.add(c1)
 session.commit()
 """

@@ -2,11 +2,11 @@ import os
 import re
 import json
 import sqlalchemy as sa
-from sqlalchemy.sql.selectable import Select
 import logging
 import threading
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.orm import sessionmaker
 from dbcreate import User, Command
+import argparse
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(thread)s - %(funcName)s - %(message)s')
 
 def worker (user):
@@ -30,23 +30,20 @@ def worker (user):
 
     Session = sessionmaker(bind=engine)
     session = Session()
-    users = sa.Table('user', metadata, autoload=True, autoload_with=engine)
-    #commands = sa.Table('command', metadata, autoload=True, autoload_with=engine)
-    #query = sa.select([users]).where(users.columns.name == user)
     query = session.query(User).filter(User.name == user)
     if len(query.all()) == 0:
-        u = User(name= user)
+        root = is_root(user)
+        u = User(name=user, is_root=root)
         session.add(u)
         session.commit()
 
     ResultSet = []
     for i in session.query(User).filter(User.name == user):
-        logging.debug(str([i.id, i.name]))
-        ResultSet.append([i.id, i.name])
+        logging.debug(str([i.id, i.name, i.is_root]))
+        ResultSet.append([i.id, i.name, i.is_root])
 
     logging.debug(len(lines))
     val_list = []
-
     for line in lines:
         flag = False
         for item in dangerous:
@@ -59,18 +56,54 @@ def worker (user):
 
     session.add_all(val_list)
     session.commit()
+
     logging.debug('session.commit()')
     logging.debug(connection.execute('Select * From command').fetchmany(10))
 
 
+def is_root(user):
+    data = ['sudo', 'root', 'admin']
+    for item in data:
+        os.system('cat /etc/group | grep %s > log.txt' % item)
+        with open('log.txt', 'r') as f:
+            lines = f.readlines()
+            for line in lines:
+                splited = line.split(':')
+                logging.debug(splited)
+                if splited[-1] == user+'\n':
+                    return True
+    os.system('rm log.txt')
+
+    return False
+
+
+def dangerous():
+    db_file = os.path.join(os.path.dirname(__file__), 'test.sqlite')
+    engine = sa.create_engine('sqlite:///{}'.format(db_file), echo=False)
+    connection = engine.connect()
+    metadata = sa.MetaData()
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    query = session.query(User,Command.command).join(Command).filter(User.is_root == 0 and Command.is_dangerous == 1)
+    if len(query.all()) == 0:
+        print('None')
+        return
+
+    for i in query:
+        print(i[0].id, i[0].name, i[1], sep=' : ')
+
 def main():
-    logging.debug('main start')
-    users = os.listdir('/home')
-    logging.debug(users)
-    for user in users:
-        #logging.debug('User: %s' % user)
-        #t = threading.Thread(target=worker, args=(user,))
-        #t.start()
-        worker(user)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--dangerous', help='Show the names of users who tried to use the dangerous command',action='count')
+
+    args = parser.parse_args()
+    if args.dangerous:
+        dangerous()
+    else:
+        logging.debug('main start')
+        users = os.listdir('/home')
+        logging.debug(users)
+        for user in users:
+            worker(user)
 
 main()
