@@ -39,7 +39,7 @@ engine = create_engine('sqlite:///{}'.format(db_file), echo=False)
 Base.metadata.drop_all(engine)
 Base.metadata.create_all(engine)
 
-session = scoped_session(sessionmaker(bind=engine))
+#session = scoped_session(sessionmaker(bind=engine))
 """
 u1 = User(name='bill')
 session.add(u1)

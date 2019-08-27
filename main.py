@@ -14,28 +14,37 @@ def worker (user):
     dangerous = ['chmod', 'sudo', 'reboot', 'sudo reboot']
 
     try:
+        path = os.getcwd()
         os.chdir('/home/%s' % user)
         f = open('.bash_history', 'r')
         lines = f.readlines()
         f.close()
+        os.chdir(path)
     except Exception as e:
         logging.error(e)
         return
-
-    db_file = os.path.join(os.path.dirname(__file__), 'test.sqlite')
+    path = os.path.realpath(__file__)
+    logging.debug(path)
+    db_file = os.path.join(os.path.dirname(path), 'test.sqlite')
+    logging.debug(db_file)
     engine = sa.create_engine('sqlite:///{}'.format(db_file), echo=False)
     connection = engine.connect()
     metadata = sa.MetaData()
+    #users = sa.Table('user', metadata, autoload=True, autoload_with=engine)
     logging.debug(engine)
 
     Session = sessionmaker(bind=engine)
     session = Session()
+
     query = session.query(User).filter(User.name == user)
+    logging.debug(query)
+    logging.debug(query.all())
     if len(query.all()) == 0:
         root = is_root(user)
         u = User(name=user, is_root=root)
         session.add(u)
         session.commit()
+        logging.debug(session)
 
     ResultSet = []
     for i in session.query(User).filter(User.name == user):
@@ -79,18 +88,19 @@ def is_root(user):
 
 def dangerous():
     db_file = os.path.join(os.path.dirname(__file__), 'test.sqlite')
-    engine = sa.create_engine('sqlite:///{}'.format(db_file), echo=False)
-    connection = engine.connect()
-    metadata = sa.MetaData()
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    query = session.query(User,Command.command).join(Command).filter(User.is_root == 0 and Command.is_dangerous == 1)
-    if len(query.all()) == 0:
-        print('None')
-        return
-
-    for i in query:
-        print(i[0].id, i[0].name, i[1], sep=' : ')
+    if os.path.exists(db_file):
+        engine = sa.create_engine('sqlite:///{}'.format(db_file), echo=False)
+        connection = engine.connect()
+        metadata = sa.MetaData()
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        query = session.query(User,Command.command).join(Command).filter(User.is_root == 0 and Command.is_dangerous == 1)
+        if len(query.all()) == 0:
+            print('None')
+            return
+        else:
+            for i in query:
+                print(i[0].id, i[0].name, i[1], sep=' : ')
 
 def main():
     parser = argparse.ArgumentParser()
@@ -106,4 +116,6 @@ def main():
         for user in users:
             worker(user)
 
-main()
+
+if __name__ == '__main__':
+    main()
